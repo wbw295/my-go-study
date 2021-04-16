@@ -12,7 +12,7 @@ var s = "kkk"
 
 var p = &person{1,2, &s}
 
-func main() {
+func main1() {
 	fmt.Println(p)
 	p1 := *p
 	fmt.Println(*p1.s)
