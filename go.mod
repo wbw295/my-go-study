@@ -1,4 +1,4 @@
-module e.coding.net/sink/go/my-go-study
+module github.com/wbw295/my-go-study
 
 go 1.16
 
