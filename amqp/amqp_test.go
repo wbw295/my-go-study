@@ -2,9 +2,13 @@ package main
 
 import (
 	"github.com/streadway/amqp"
+	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestQueueDeclare(t *testing.T) {
@@ -28,39 +32,65 @@ func TestQueueDeclare(t *testing.T) {
 		return
 	}
 
-	wg := &sync.WaitGroup{}
+	consumersWg := &sync.WaitGroup{}
 	times := 10
-	wg.Add(times + 1)
+	consumersWg.Add(times)
 	for i := 0; i < times; i++ {
-		go func() {
+		go func(i int) {
+			defer func(i int) {
+				t.Logf("consumer %d end!", i+1)
+				consumersWg.Done()
+			}(i)
 			for d := range ds {
-				t.Logf("received msg: %s", string(d.Body))
-				err2 := d.Nack(false, true)
+				t.Logf("consumer %d received msg: %s", i, string(d.Body))
+				err2 := d.Ack(false)
 				if err2 != nil {
 					t.Error(err2)
 					break
 				}
 			}
-			wg.Done()
-		}()
+		}(i)
 	}
-
+	exit := make(chan struct{})
+	pubWg := &sync.WaitGroup{}
+	pubWg.Add(1)
 	go func() {
-		for i := 0; i < 10000; i++ {
-			err2 := channel.Publish("", q.Name, false, false, amqp.Publishing{
-				DeliveryMode: amqp.Persistent,
-				ContentType:  "text/plain",
-				Body:         []byte("msg_" + strconv.Itoa(i+1)),
-			})
-			if err2 != nil {
-				t.Errorf("loop %d occur error: %v", i+1, err2)
+		defer func() {
+			t.Log("mq publish end!")
+			pubWg.Done()
+		}()
+		for i := 0; i < 100; i++ {
+			end := false
+			select {
+			case <-exit:
+				t.Log("received exit signal")
+				end = true
+			default:
+				err2 := channel.Publish("", q.Name, false, false, amqp.Publishing{
+					DeliveryMode: amqp.Persistent,
+					ContentType:  "text/plain",
+					Body:         []byte("msg_" + strconv.Itoa(i+1)),
+				})
+				time.Sleep(1 * time.Second)
+				if err2 != nil {
+					t.Errorf("loop %d occur error: %v", i+1, err2)
+					break
+				}
+			}
+			if end {
 				break
 			}
+
 		}
-		wg.Done()
 	}()
-	t.Log(q)
-	wg.Wait()
+	//err := <-conn.NotifyClose(make(chan *amqp.Error))
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
+	<-signals
+	exit <- struct{}{}
+	pubWg.Wait()
+	_ = conn.Close()
+	consumersWg.Wait()
 }
 
 func printError(err *error, t *testing.T) {
