@@ -1,11 +1,17 @@
 package main
 
-import "fmt"
+import (
+	"github.com/wbw295/my-go-study/common/log"
+	"strings"
+)
 
 func main() {
-	s := []int{0}
-	s1 := s[:0]
-	fmt.Println(len(s), cap(s), s)
-	fmt.Println(len(s1), cap(s1), s1)
+
+	authContent := ""
+	authArray := strings.Split(authContent, " ")
+	for _, e := range authArray {
+		log.Info(e)
+	}
+
 
 }

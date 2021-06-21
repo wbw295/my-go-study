@@ -85,8 +85,9 @@ func TestQueueDeclare(t *testing.T) {
 	}()
 	//err := <-conn.NotifyClose(make(chan *amqp.Error))
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	<-signals
+	signal.Notify(signals, syscall.SIGTERM, os.Interrupt)
+	s := <-signals
+	t.Log(s)
 	exit <- struct{}{}
 	pubWg.Wait()
 	_ = conn.Close()
